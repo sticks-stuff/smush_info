@@ -1,0 +1,21 @@
+[package]
+name = "smush_info_shared"
+version = "0.3.0"
+authors = ["jam1garner <8260240+jam1garner@users.noreply.github.com>"]
+edition = "2018"
+
+[[bin]]
+name = "smush_info_dump"
+path = "src/test_client.rs"
+required-features = ["test_client"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", optional = true }
+dirs = { version = "2", optional = true }
+
+[dev-dependencies]
+serde_json = "1"
+
+[features]
+test_client = ["serde_json", "dirs"]

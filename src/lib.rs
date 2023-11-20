@@ -109,7 +109,8 @@ fn start_server() -> Result<(), i64> {
         loop {
             let mgr = *(FIGHTER_MANAGER_ADDR as *mut *mut app::FighterManager);
             let is_match = FighterManager::entry_count(mgr) > 0 &&
-                !FighterManager::is_result_mode(mgr);
+                !FighterManager::is_result_mode(mgr) &&
+                *(offset_to_addr(0x53030f0) as *const u32) != 0x6020000; //is_match is set to true when the player in the controls screen, i assume because there is a sandbag and mario. this ensures we're not in the controls screen 
 
             if is_match {
                 GAME_INFO.remaining_frames.store(get_remaining_time_as_frame(), Ordering::SeqCst);
@@ -271,6 +272,8 @@ pub unsafe fn set_player_information(module_accessor: &mut app::BattleObjectModu
     GAME_INFO.players[player_num].stocks.store(stock_count, Ordering::SeqCst);
     GAME_INFO.players[player_num].is_cpu.store(is_cpu, Ordering::SeqCst);
     GAME_INFO.players[player_num].skin.store(skin, Ordering::SeqCst);
+    println!("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ player tag {}", get_tag_of_player(player_num));
+    GAME_INFO.players[player_num].name.store_str(Some(&get_tag_of_player(player_num)), Ordering::SeqCst);
 }
 
 #[skyline::hook(replace = L2CFighterCommon_status_pre_Entry)]
@@ -312,10 +315,53 @@ fn nro_main(nro: &skyline::nro::NroInfo<'_>) {
     }
 }
 
+
+static UPDATE_TAG_FOR_PLAYER_OFFSET: usize = 0x19fc5b0;
+static PLAYER_SAVE_OFFSET: usize = 0x5312510;
+static mut PLAYER_SAVE_ADDRESS: *const u64 = 0x0 as *const u64;
+
+static PLAYER_TAG_OFFSET: usize = 0x52c3758;
+
+pub fn get_tag_of_player(player_index: usize) -> String {
+    let player_tag_offset = PLAYER_TAG_OFFSET + (player_index * 0x260);
+    let player_tag_addr: *const u16 = offset_to_addr(player_tag_offset) as *const u16;
+    
+    unsafe {
+        let mut len = 0;
+        while unsafe { *player_tag_addr.add(len) != 0 } {
+            len += 1;
+        }
+        let slice = std::slice::from_raw_parts(player_tag_addr, len);
+        String::from_utf16_lossy(slice)
+    }
+}
+
+pub fn get_tag_from_save(tag_index: u8) -> String {
+    unsafe {
+        let addr = (***((*((*PLAYER_SAVE_ADDRESS) as *const u64) + 0x58) as *const *const *const u64) + ((tag_index as u64) * 0xF7D8) + 0xC) as *const u16;
+        let mut len = 0;
+        while unsafe { *addr.add(len) != 0 } {
+            len += 1;
+        }
+
+        let slice = std::slice::from_raw_parts(addr, len);
+        String::from_utf16_lossy(slice)
+    }
+}
+
+#[skyline::hook(offset = UPDATE_TAG_FOR_PLAYER_OFFSET)]
+pub fn update_tag_for_player(param_1: u64, tag_index: *const u8){
+    unsafe {
+        println!("AAAAAAAAAAAAAAAAAAAA PLAYER TAG = {} PARAM 1 = {} PARAM 1 = {}", get_tag_from_save(*tag_index), param_1, *tag_index);
+        call_original!(param_1, tag_index);
+    }
+}
+
 #[skyline::main(name = "discord_server")]
 pub fn main() {
     skyline::nro::add_hook(nro_main).unwrap();
     unsafe {
+        PLAYER_SAVE_ADDRESS = offset_to_addr(PLAYER_SAVE_OFFSET) as *const u64;
         skyline::nn::ro::LookupSymbol(
             &mut FIGHTER_MANAGER_ADDR,
             "_ZN3lib9SingletonIN3app14FighterManagerEE9instance_E\u{0}".as_bytes().as_ptr(),
@@ -335,7 +381,8 @@ pub fn main() {
     }
     skyline::install_hooks!(
         some_strlen_thing,
-        close_arena
+        close_arena,
+        update_tag_for_player
     );
 
     std::thread::spawn(||{
