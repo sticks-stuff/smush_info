@@ -10,7 +10,7 @@ use std::sync::atomic::Ordering;
 use smash::app;
 use smash::app::lua_bind::*;
 use smash::lib::lua_const::*;
-use smash::lua2cpp::{L2CFighterCommon, L2CFighterCommon_status_pre_Rebirth, L2CFighterCommon_status_pre_Entry, L2CFighterCommon_sub_damage_uniq_process_init};
+use smash::lua2cpp::{L2CFighterCommon, L2CFighterCommon_status_pre_Rebirth, L2CFighterCommon_status_pre_Entry, L2CFighterCommon_sub_damage_uniq_process_init, L2CFighterCommon_sub_dead_uniq_process_init, L2CFighterCommon_status_pre_Dead};
 use smash::lib::L2CValue;
 
 use smush_info_shared::Info;
@@ -294,6 +294,27 @@ pub unsafe fn handle_pre_rebirth(fighter: &mut L2CFighterCommon) -> L2CValue {
     original!()(fighter)
 }
 
+#[skyline::hook(replace = L2CFighterCommon_status_pre_Dead)]
+pub unsafe fn handle_pre_dead(fighter: &mut L2CFighterCommon) -> L2CValue { // this kinda fucking sucks but whatever
+    let module_accessor = app::sv_system::battle_object_module_accessor(fighter.lua_state_agent);
+
+    let entry_id = WorkModule::get_int(module_accessor, *FIGHTER_INSTANCE_WORK_ID_INT_ENTRY_ID) as i32;
+    let player_num = entry_id as usize;
+    let mgr = *(FIGHTER_MANAGER_ADDR as *mut *mut app::FighterManager);
+    let fighter_information = FighterManager::get_fighter_information(
+        mgr, 
+        app::FighterEntryID(entry_id)
+    ) as *mut app::FighterInformation;
+
+    let stock_count = (FighterInformation::stock_count(fighter_information) as u32) - 1;
+    GAME_INFO.players[player_num].stocks.store(stock_count, Ordering::SeqCst);
+
+    println!("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ WE CALLED L2CFighterCommon_status_pre_Dead AND ATTEMPTED TO SET STOCK COUNT TO {}", stock_count);
+    // set_player_information(module_accessor);
+
+    original!()(fighter)
+}
+
 #[skyline::hook(replace = L2CFighterCommon_sub_damage_uniq_process_init)]
 pub unsafe fn handle_sub_damage_uniq_process_init(fighter: &mut L2CFighterCommon) -> L2CValue {
     let module_accessor = app::sv_system::battle_object_module_accessor(fighter.lua_state_agent);
@@ -308,7 +329,8 @@ fn nro_main(nro: &skyline::nro::NroInfo<'_>) {
             skyline::install_hooks!(
                 handle_pre_entry,
                 handle_pre_rebirth,
-                handle_sub_damage_uniq_process_init
+                handle_sub_damage_uniq_process_init,
+                handle_pre_dead
             );
         }
         _ => (),
