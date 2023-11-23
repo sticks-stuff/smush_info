@@ -10,7 +10,7 @@ use std::sync::atomic::Ordering;
 use smash::app;
 use smash::app::lua_bind::*;
 use smash::lib::lua_const::*;
-use smash::lua2cpp::{L2CFighterCommon, L2CFighterCommon_status_pre_Rebirth, L2CFighterCommon_status_pre_Entry, L2CFighterCommon_sub_damage_uniq_process_init, L2CFighterCommon_sub_dead_uniq_process_init, L2CFighterCommon_status_pre_Dead};
+use smash::lua2cpp::{L2CFighterCommon, L2CFighterCommon_status_pre_Rebirth, L2CFighterCommon_status_pre_Entry, L2CFighterCommon_sub_damage_uniq_process_init, L2CFighterCommon_status_pre_Dead};
 use smash::lib::L2CValue;
 
 use smush_info_shared::Info;
@@ -60,7 +60,7 @@ fn start_server() -> Result<(), i64> {
             sin_zero: [0; 8],
         };
 
-        let mut tcp_socket = socket(AF_INET, SOCK_STREAM, 0);
+        let tcp_socket = socket(AF_INET, SOCK_STREAM, 0);
 
         macro_rules! dbg_err {
             ($expr:expr) => {
@@ -172,7 +172,6 @@ fn some_strlen_thing(x: usize) -> usize {
         if !y.is_null() {
             let text = getRegionAddress(Region::Text) as u64;
             let lr_offset = *get_fp().offset(1) - text;
-            let arena_id = from_c_str(*y);
             if lr_offset == OFFSET2 as u64 { //2
                 let arena_id = from_c_str(*y);
                 if arena_id.len() == 5 {
@@ -350,7 +349,7 @@ pub fn get_tag_of_player(player_index: usize) -> String {
     
     unsafe {
         let mut len = 0;
-        while unsafe { *player_tag_addr.add(len) != 0 } {
+        while *player_tag_addr.add(len) != 0 {
             len += 1;
         }
         let slice = std::slice::from_raw_parts(player_tag_addr, len);
@@ -362,7 +361,7 @@ pub fn get_tag_from_save(tag_index: u8) -> String {
     unsafe {
         let addr = (***((*((*PLAYER_SAVE_ADDRESS) as *const u64) + 0x58) as *const *const *const u64) + ((tag_index as u64) * 0xF7D8) + 0xC) as *const u16;
         let mut len = 0;
-        while unsafe { *addr.add(len) != 0 } {
+        while *addr.add(len) != 0 {
             len += 1;
         }
 
@@ -374,7 +373,10 @@ pub fn get_tag_from_save(tag_index: u8) -> String {
 #[skyline::hook(offset = UPDATE_TAG_FOR_PLAYER_OFFSET)]
 pub fn update_tag_for_player(param_1: u64, tag_index: *const u8){
     unsafe {
-        println!("AAAAAAAAAAAAAAAAAAAA PLAYER TAG = {} PARAM 1 = {} PARAM 1 = {}", get_tag_from_save(*tag_index), param_1, *tag_index);
+        let player_index = *((param_1 as *mut u8).offset(0x1d4) as *mut i32) as usize;
+        GAME_INFO.players[player_index].name.store_str(Some(&get_tag_from_save(*tag_index)), Ordering::SeqCst);
+        
+        println!("AAAAAAAAAAAAAAAAAAAA PLAYER NAME OF INDEX {} IS {}", player_index, get_tag_from_save(*tag_index));
         call_original!(param_1, tag_index);
     }
 }
