@@ -16,7 +16,9 @@ pub use atomic_name::AtomicName;
 pub struct Info {
     pub arena_id: AtomicArenaId,
     pub remaining_frames: AtomicU32,
+    pub current_menu: AtomicU32,
     pub is_match: AtomicBool,
+    pub is_results_screen: AtomicBool,
     pub stage: AtomicU32,
     pub players: [Player; 8]
 }
@@ -1001,7 +1003,9 @@ impl Info {
         Self {
             arena_id: AtomicArenaId::new(None),
             remaining_frames: AtomicU32::new(u32::MAX),
+            current_menu: AtomicU32::new(u32::MAX),
             is_match: AtomicBool::new(false),
+            is_results_screen: AtomicBool::new(false),
             stage: AtomicU32::new(Stage::None as u32),
             players: [
                 Player::new(),
@@ -1117,6 +1121,8 @@ mod shared_tests {
             arena_id: AtomicArenaId::new(Some([b'A', b'A', b'A', b'A', b'A'])),
             is_match: AtomicBool::new(true),
             remaining_frames: AtomicU32::new(3),
+            current_menu: AtomicU32::new(3),
+            is_results_screen: AtomicU32::new(3),
             stage: AtomicU32::new(Stage::Plankton as u32),
             players: [
                 Player::new(),

@@ -120,6 +120,9 @@ fn start_server() -> Result<(), i64> {
                 GAME_INFO.is_match.store(false, Ordering::SeqCst);
             }
 
+            GAME_INFO.current_menu.store(*(offset_to_addr(0x53030f0) as *const u32), Ordering::SeqCst);
+            GAME_INFO.is_results_screen.store(FighterManager::is_result_mode(mgr), Ordering::SeqCst);
+
             let mut data = serde_json::to_vec(&GAME_INFO).unwrap();
             data.push(b'\n');
             match send_bytes(w_tcp_socket, &data) {
