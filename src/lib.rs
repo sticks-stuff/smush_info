@@ -1,6 +1,7 @@
 #![feature(proc_macro_hygiene)]
+#![feature(simd_ffi)]
 
-use skyline::hooks::{getRegionAddress, Region};
+use skyline::hooks::{getRegionAddress, Region, InlineCtx};
 use skyline::from_c_str;
 use skyline::libc::*;
 use std::time::Duration;
@@ -8,12 +9,17 @@ use std::mem::size_of_val;
 use std::sync::atomic::Ordering;
 
 use smash::app;
+use smash::app::lua_bind;
 use smash::app::lua_bind::*;
 use smash::lib::lua_const::*;
 use smash::lua2cpp::{L2CFighterCommon, L2CFighterCommon_status_pre_Rebirth, L2CFighterCommon_status_pre_Entry, L2CFighterCommon_sub_damage_uniq_process_init, L2CFighterCommon_status_pre_Dead};
 use smash::lib::L2CValue;
 
 use smush_info_shared::Info;
+
+use core::arch::aarch64::*;
+use smash::Vector3f;
+use smash::Vector2f;
 
 mod conversions;
 use conversions::{kind_to_char, stage_id_to_stage};
@@ -31,6 +37,9 @@ extern "C" {
 
     #[link_name = "\u{1}_ZN3app14sv_information27get_remaining_time_as_frameEv"]
     pub fn get_remaining_time_as_frame() -> u32;
+    
+    #[link_name = "\u{1}_ZN3app17sv_camera_manager15world_to_screenERKN3phx8Vector3fEb"]
+    pub fn world_to_screen(vec: *const Vector3f, unk: bool) -> float32x2_t;
 }
 
 fn send_bytes(socket: i32, bytes: &[u8]) -> Result<(), i64> {
@@ -42,6 +51,36 @@ fn send_bytes(socket: i32, bytes: &[u8]) -> Result<(), i64> {
             Ok(())
         }
     }
+}
+
+fn as_pixels(vec: Vector3f) -> Vector2f {
+    unsafe {        
+        let screen = world_to_screen(&vec, true);
+        let x = vget_lane_f32(screen, 0);
+        let y = vget_lane_f32(screen, 1);
+        return Vector2f{x, y};
+    }
+}
+
+pub fn once_per_frame_per_fighter(fighter : &mut L2CFighterCommon) {
+    let lua_state = fighter.lua_state_agent;
+    let module_accessor = unsafe { app::sv_system::battle_object_module_accessor(lua_state) };
+    
+    unsafe {
+        let entry_id = WorkModule::get_int(module_accessor, *FIGHTER_INSTANCE_WORK_ID_INT_ENTRY_ID) as i32;
+        let player_num = entry_id as usize;
+        let pos_x = lua_bind::PostureModule::pos_x(module_accessor);
+        let pos_y = lua_bind::PostureModule::pos_y(module_accessor);
+        let pos_z = lua_bind::PostureModule::pos_z(module_accessor);
+        println!("player {} x {} y {} z {}", player_num, pos_x, pos_y, pos_z);
+        let pos = Vector3f { x: pos_x, y: pos_y, z: pos_z };
+        let screen_pos = as_pixels(pos);
+        println!("player {} screen_pos x {} screen_pos y {}", player_num, screen_pos.x, screen_pos.y);
+    
+        GAME_INFO.players[player_num].x.store(screen_pos.x, Ordering::SeqCst);
+        GAME_INFO.players[player_num].y.store(screen_pos.y, Ordering::SeqCst);
+    }
+
 }
 
 
@@ -411,6 +450,7 @@ pub fn main() {
         close_arena,
         update_tag_for_player
     );
+    acmd::add_custom_hooks!(once_per_frame_per_fighter);
 
     std::thread::spawn(||{
         loop {
