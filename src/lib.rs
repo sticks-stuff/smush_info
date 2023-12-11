@@ -169,7 +169,9 @@ fn start_server() -> Result<(), i64> {
             }
 
             GAME_INFO.current_menu.store(*(offset_to_addr(0x53030f0) as *const u32), Ordering::SeqCst);
-            GAME_INFO.is_results_screen.store(FighterManager::is_result_mode(mgr), Ordering::SeqCst);
+            if(FighterManager::entry_count(mgr) > 0 && *(offset_to_addr(0x53030f0) as *const u32) != 0x6020000) {
+                GAME_INFO.is_results_screen.store(FighterManager::is_result_mode(mgr), Ordering::SeqCst);
+            }
 
             let mut data = serde_json::to_vec(&GAME_INFO).unwrap();
             data.push(b'\n');
@@ -509,6 +511,12 @@ fn search_offsets() {
     }
 }
 
+#[skyline::hook(offset = 0x23344e4, inline)]
+unsafe fn selected_stage(ctx: &InlineCtx) {
+    println!("stage has been selected");
+    GAME_INFO.is_results_screen.store(false, Ordering::SeqCst);
+}
+
 #[skyline::main(name = "discord_server")]
 pub fn main() {
     search_offsets();
@@ -536,7 +544,8 @@ pub fn main() {
         some_strlen_thing,
         close_arena,
         update_tag_for_player,
-        css_fighter_selected
+        css_fighter_selected,
+        selected_stage
     );
     acmd::add_custom_hooks!(once_per_frame_per_fighter);
 
