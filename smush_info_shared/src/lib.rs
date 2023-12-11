@@ -30,7 +30,9 @@ pub struct Player {
     pub stocks: AtomicU32,
     pub damage: AtomicF32,
     pub is_cpu: AtomicBool,
-    pub skin: AtomicU32
+    pub skin: AtomicU32,
+    pub x: AtomicF32,
+    pub y: AtomicF32
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1052,7 +1054,9 @@ impl Player {
             damage: AtomicF32::new(0.),
             stocks: AtomicU32::new(0),
             is_cpu: AtomicBool::new(false),
-            skin: AtomicU32::new(0)
+            skin: AtomicU32::new(0),
+            x: AtomicF32::new(0.),
+            y: AtomicF32::new(0.)
         }
     }
 
@@ -1080,6 +1084,12 @@ impl Player {
     }
     pub fn skin(&self) -> u32 {
         self.skin.load(Ordering::SeqCst)
+    }
+    pub fn x(&self) -> f32 {
+        self.damage.load(Ordering::SeqCst)
+    }
+    pub fn y(&self) -> f32 {
+        self.damage.load(Ordering::SeqCst)
     }
 }
 

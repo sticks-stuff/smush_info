@@ -16,6 +16,7 @@ skyline_smash = { git = "https://github.com/ultimate-research/skyline-smash.git"
 smush_info_shared = {  path = "smush_info_shared"}
 serde_json = "1"
 lazy_static = "1.4"
+acmd = { git = "https://github.com/ultimate-research/skyline-acmd.git" }
 
 [profile.dev]
 panic = "abort"
