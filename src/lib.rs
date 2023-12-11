@@ -28,6 +28,15 @@ static mut OFFSET1 : usize = 0x1b52a0;
 static mut OFFSET2 : usize = 0x225dc2c;
 static mut OFFSET3 : usize = 0xd7140;
 
+// Default 13.0.1 offset
+static mut FIGHTER_SELECTED_OFFSET: usize = 0x66e120;
+
+static FIGHTER_SELECTED_SEARCH_CODE: &[u8] = &[
+    0x04, 0xdc, 0x45, 0x94,
+    0xe0, 0x03, 0x1c, 0x32,
+    0xe1, 0x03, 0x1a, 0x32,
+];
+
 extern "C" {
     #[link_name = "\u{1}_ZN3app7utility8get_kindEPKNS_26BattleObjectModuleAccessorE"]
     pub fn get_kind(module_accessor: &mut app::BattleObjectModuleAccessor) -> i32;
@@ -306,7 +315,7 @@ pub unsafe fn set_player_information(module_accessor: &mut app::BattleObjectModu
     let damage = DamageModule::damage(module_accessor, 0);
     let stock_count = FighterInformation::stock_count(fighter_information) as u32;
     let is_cpu = FighterInformation::is_operation_cpu(fighter_information);
-    let skin = (WorkModule::get_int(module_accessor, *FIGHTER_INSTANCE_WORK_ID_INT_COLOR) + 1) as u32; //returns costume slot 0-indexed... add 1 here to match costume slot number from in-game
+    let skin = (WorkModule::get_int(module_accessor, *FIGHTER_INSTANCE_WORK_ID_INT_COLOR)) as u32; //returns costume slot 0-indexed
 
     GAME_INFO.players[player_num].character.store(character, Ordering::SeqCst);
     GAME_INFO.players[player_num].damage.store(damage, Ordering::SeqCst);
@@ -423,8 +432,86 @@ pub fn update_tag_for_player(param_1: u64, tag_index: *const u8){
     }
 }
 
+#[derive(Debug)]
+struct UnkPtr1 {
+    ptrs: [&'static u64; 7],
+}
+
+#[derive(Debug)]
+struct UnkPtr2 {
+    bunch_bytes: [u8; 0x20],
+    bunch_bytes2: [u8; 0x20]
+}
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct FighterInfo {
+    unk_ptr1: &'static UnkPtr1,
+    unk_ptr2: &'static UnkPtr2,
+    unk1: [u8; 0x20],
+    unk2: [u8; 0x20],
+    unk3: [u8; 0x8],
+    fighter_id: u8,
+    unk4: [u8;0xB],
+    fighter_slot: u8,
+}
+
+#[derive(Debug)]
+#[repr(C)]
+pub struct FighterInfoBasic {
+    field0_0x0: *mut (),
+    field1_0x8: *mut (),
+    field2_0x10: [u8; 0x30],
+    ice_climber_going_first: u32,
+    field67_0x54: u32,
+    fighter_id: u32,
+    redirected_fighter_id: u32,
+    field70_0x60: u32,
+    fighter_slot: u32,
+    field72_0x68: u16,
+    field73_0x6a: u16,
+    field74_0x6c: u32,
+    field75_0x70: u32,
+    field76_0x74: u32,
+    field77_0x78: u32,
+    field78_0x7c: bool,
+    field79_0x7d: u8,
+    field80_0x7e: u8,
+    field81_0x7f: u8,
+    field82_0x80: i32,
+    field83_0x84: [u8; 0x64],
+}
+
+#[skyline::hook(offset = FIGHTER_SELECTED_OFFSET, inline)]
+fn css_fighter_selected(ctx: &InlineCtx) {
+    let infos = unsafe { &*(ctx.registers[0].bindgen_union_field as *const FighterInfo) };
+    let infosbasic = unsafe { &*(ctx.registers[0].bindgen_union_field as *const FighterInfoBasic) };
+    let fighter_id = infos.fighter_id as i32;
+    let skin = infos.fighter_slot as u32;
+    let character = kind_to_char(fighter_id) as u32;
+    let port = (infosbasic.field77_0x78 & 0xFFFF) as usize;
+    println!("character {}\nskin {}\nport {}\n ", character, skin, port);
+    GAME_INFO.players[port].character.store(character, Ordering::SeqCst);
+    GAME_INFO.players[port].skin.store(skin, Ordering::SeqCst);
+}
+
+fn search_offsets() {
+    unsafe {
+        let text_ptr = getRegionAddress(Region::Text) as *const u8;
+        let text_size = (getRegionAddress(Region::Rodata) as usize) - (text_ptr as usize);
+        let text = std::slice::from_raw_parts(text_ptr, text_size);
+
+        if let Some(offset) = find_subsequence(text, FIGHTER_SELECTED_SEARCH_CODE) {
+            FIGHTER_SELECTED_OFFSET = offset;
+        } else {
+            println!("Error: no offset found for 'css_fighter_selected'. Defaulting to 13.0.1 offset. This likely won't work.");
+        }
+    }
+}
+
 #[skyline::main(name = "discord_server")]
 pub fn main() {
+    search_offsets();
     skyline::nro::add_hook(nro_main).unwrap();
     unsafe {
         PLAYER_SAVE_ADDRESS = offset_to_addr(PLAYER_SAVE_OFFSET) as *const u64;
@@ -448,7 +535,8 @@ pub fn main() {
     skyline::install_hooks!(
         some_strlen_thing,
         close_arena,
-        update_tag_for_player
+        update_tag_for_player,
+        css_fighter_selected
     );
     acmd::add_custom_hooks!(once_per_frame_per_fighter);
 
