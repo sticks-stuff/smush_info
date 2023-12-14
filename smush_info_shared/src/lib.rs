@@ -32,7 +32,10 @@ pub struct Player {
     pub is_cpu: AtomicBool,
     pub skin: AtomicU32,
     pub x: AtomicF32,
-    pub y: AtomicF32
+    pub y: AtomicF32,
+    pub hero_menu_open: AtomicBool,
+    pub hero_menu_selected: AtomicBool,
+    pub hero_menu_selection: AtomicU32
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1056,7 +1059,10 @@ impl Player {
             is_cpu: AtomicBool::new(false),
             skin: AtomicU32::new(0),
             x: AtomicF32::new(0.),
-            y: AtomicF32::new(0.)
+            y: AtomicF32::new(0.),
+            hero_menu_open: AtomicBool::new(false),
+            hero_menu_selected: AtomicBool::new(false),
+            hero_menu_selection: AtomicU32::new(0)
         }
     }
 
@@ -1082,14 +1088,29 @@ impl Player {
     pub fn is_cpu(&self) -> bool {
         self.is_cpu.load(Ordering::SeqCst)
     }
+
     pub fn skin(&self) -> u32 {
         self.skin.load(Ordering::SeqCst)
     }
+
     pub fn x(&self) -> f32 {
         self.damage.load(Ordering::SeqCst)
     }
+
     pub fn y(&self) -> f32 {
         self.damage.load(Ordering::SeqCst)
+    }
+    
+    pub fn hero_menu_open(&self) -> bool {
+        self.hero_menu_open.load(Ordering::SeqCst)
+    }
+
+    pub fn hero_menu_selected(&self) -> bool {
+        self.hero_menu_selected.load(Ordering::SeqCst)
+    }
+    
+    pub fn hero_menu_selection(&self) -> u32 {
+        self.hero_menu_selection.load(Ordering::SeqCst)
     }
 }
 

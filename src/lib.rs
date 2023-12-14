@@ -12,6 +12,7 @@ use smash::app;
 use smash::app::lua_bind;
 use smash::app::lua_bind::*;
 use smash::lib::lua_const::*;
+use smash::app::BattleObject;
 use smash::lua2cpp::{L2CFighterCommon, L2CFighterCommon_status_pre_Rebirth, L2CFighterCommon_status_pre_Entry, L2CFighterCommon_sub_damage_uniq_process_init, L2CFighterCommon_status_pre_Dead};
 use smash::lib::L2CValue;
 
@@ -319,6 +320,11 @@ pub unsafe fn set_player_information(module_accessor: &mut app::BattleObjectModu
     let is_cpu = FighterInformation::is_operation_cpu(fighter_information);
     let skin = (WorkModule::get_int(module_accessor, *FIGHTER_INSTANCE_WORK_ID_INT_COLOR)) as u32; //returns costume slot 0-indexed
 
+    if(FighterManager::entry_count(mgr) > 0) {
+        GAME_INFO.players[player_num].hero_menu_selected.store(false, Ordering::SeqCst);
+        GAME_INFO.players[player_num].hero_menu_open.store(false, Ordering::SeqCst);            
+    }
+
     GAME_INFO.players[player_num].character.store(character, Ordering::SeqCst);
     GAME_INFO.players[player_num].damage.store(damage, Ordering::SeqCst);
     GAME_INFO.players[player_num].stocks.store(stock_count, Ordering::SeqCst);
@@ -517,6 +523,64 @@ unsafe fn selected_stage(ctx: &InlineCtx) {
     GAME_INFO.is_results_screen.store(false, Ordering::SeqCst);
 }
 
+extern "C" {
+    #[link_name = "_ZN3app24FighterSpecializer_Brave23special_lw_open_commandERNS_7FighterE"]
+    fn special_lw_open_command();
+    #[link_name = "_ZN3app24FighterSpecializer_Brave23special_lw_close_windowERNS_7FighterEbbb"]
+    fn special_lw_close_window(fighter: *mut app::Fighter, arg2: bool, no_decide: bool, arg4: bool);
+    #[link_name = "_ZN3app24FighterSpecializer_Brave25special_lw_decide_commandERNS_7FighterENS_28FighterBraveSpecialLwCommandEi"]
+    fn special_lw_decide_command(fighter: *mut app::Fighter, command: app::FighterBraveSpecialLwCommand, idx: i32);
+    #[link_name = "_ZN3app24FighterSpecializer_Brave23special_lw_select_indexERNS_7FighterEi"]
+    fn special_lw_select_index(fighter: *mut app::Fighter, index: i32);
+}
+
+#[skyline::hook(replace = special_lw_open_command)]
+pub unsafe fn special_lw_open_command_hook(fighter: &mut app::Fighter) {
+    let module_accessor: *mut app::BattleObjectModuleAccessor = app::sv_battle_object::module_accessor(*(((&mut (fighter.battle_object) as *mut app::BattleObject) as u64 + 8) as *mut u32)); //this is a mess
+    let entry_id = WorkModule::get_int(module_accessor, *FIGHTER_INSTANCE_WORK_ID_INT_ENTRY_ID) as i32;
+    let player_num = entry_id as usize;
+
+    GAME_INFO.players[player_num].hero_menu_open.store(true, Ordering::SeqCst);
+    GAME_INFO.players[player_num].hero_menu_selection.store(0, Ordering::SeqCst);
+
+    call_original!(fighter);
+}
+
+#[skyline::hook(replace = special_lw_select_index)]
+pub unsafe fn special_lw_select_index_hook(fighter: &mut app::Fighter, index: i32) {
+    let module_accessor: *mut app::BattleObjectModuleAccessor = app::sv_battle_object::module_accessor(*(((&mut (fighter.battle_object) as *mut app::BattleObject) as u64 + 8) as *mut u32)); //this is a mess
+    let entry_id = WorkModule::get_int(module_accessor, *FIGHTER_INSTANCE_WORK_ID_INT_ENTRY_ID) as i32;
+    let player_num = entry_id as usize;
+
+    GAME_INFO.players[player_num].hero_menu_selection.store(index as u32, Ordering::SeqCst);
+    call_original!(fighter, index);
+}
+
+#[skyline::hook(replace = special_lw_decide_command)]
+pub unsafe fn special_lw_decide_command_hook(fighter: &mut app::Fighter, command: app::FighterBraveSpecialLwCommand, idx: i32) {
+    let module_accessor: *mut app::BattleObjectModuleAccessor = app::sv_battle_object::module_accessor(*(((&mut (fighter.battle_object) as *mut app::BattleObject) as u64 + 8) as *mut u32)); //this is a mess
+    let entry_id = WorkModule::get_int(module_accessor, *FIGHTER_INSTANCE_WORK_ID_INT_ENTRY_ID) as i32;
+    let player_num = entry_id as usize;
+
+    GAME_INFO.players[player_num].hero_menu_selection.store(idx as u32, Ordering::SeqCst);
+    GAME_INFO.players[player_num].hero_menu_selected.store(true, Ordering::SeqCst);
+
+    call_original!(fighter, command, idx);
+}
+
+#[skyline::hook(replace = special_lw_close_window)]
+pub unsafe fn special_lw_close_window_hook(fighter: &mut app::Fighter, arg2: bool, no_decide: bool, arg4: bool) {
+    let module_accessor: *mut app::BattleObjectModuleAccessor = app::sv_battle_object::module_accessor(*(((&mut (fighter.battle_object) as *mut app::BattleObject) as u64 + 8) as *mut u32)); //this is a mess
+    let entry_id = WorkModule::get_int(module_accessor, *FIGHTER_INSTANCE_WORK_ID_INT_ENTRY_ID) as i32;
+    let player_num = entry_id as usize;
+
+    
+    GAME_INFO.players[player_num].hero_menu_selected.store(false, Ordering::SeqCst);
+    GAME_INFO.players[player_num].hero_menu_open.store(false, Ordering::SeqCst);
+
+    call_original!(fighter, arg2, no_decide, arg4);
+}
+
 #[skyline::main(name = "discord_server")]
 pub fn main() {
     search_offsets();
@@ -545,9 +609,13 @@ pub fn main() {
         close_arena,
         update_tag_for_player,
         css_fighter_selected,
-        selected_stage
+        selected_stage,
+        special_lw_open_command_hook,
+        special_lw_close_window_hook,
+        special_lw_decide_command_hook,
+        special_lw_select_index_hook
     );
-    acmd::add_custom_hooks!(once_per_frame_per_fighter);
+    // acmd::add_custom_hooks!(once_per_frame_per_fighter);
 
     std::thread::spawn(||{
         loop {
