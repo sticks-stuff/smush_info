@@ -5,3 +5,5 @@ A Skyline plugin that hosts a TCP server for subscribing to information about th
 Original Authors:
 * jam1garner
 * jugeeya
+
+Seems jam1garner has left the scene so I don't feel particularly comfortable asking them licensing questions, but consider everything I've added to this project GPLv3
