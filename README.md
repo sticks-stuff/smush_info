@@ -10,7 +10,7 @@ Original Authors:
 
 Seems jam1garner has left the scene so I don't feel particularly comfortable asking them licensing questions, but consider everything I've added to this project GPLv3
 
-# How to Build
+# How to Build and Install
 You must have Rust and Cargo installed. [Click here](https://www.rust-lang.org/tools/install) for instructions on how to install based on your system.
 
 Once those are installed, open your command prompt or terminal and run the following commands
