@@ -28,6 +28,7 @@ pub struct Player {
     pub name: AtomicName,
     pub character: AtomicU32,
     pub stocks: AtomicU32,
+    pub self_destructs: AtomicU32,
     pub damage: AtomicF32,
     pub is_cpu: AtomicBool,
     pub skin: AtomicU32,
@@ -1056,6 +1057,7 @@ impl Player {
             character: AtomicU32::new(Character::None as u32),
             damage: AtomicF32::new(0.),
             stocks: AtomicU32::new(0),
+            self_destructs: AtomicU32::new(0),
             is_cpu: AtomicBool::new(false),
             skin: AtomicU32::new(0),
             x: AtomicF32::new(0.),
@@ -1083,6 +1085,10 @@ impl Player {
 
     pub fn stocks(&self) -> u32 {
         self.stocks.load(Ordering::SeqCst)
+    }
+
+    pub fn self_destructs(&self) -> u32 {
+        self.self_destructs.load(Ordering::SeqCst)
     }
 
     pub fn is_cpu(&self) -> bool {
