@@ -317,6 +317,7 @@ pub unsafe fn set_player_information(module_accessor: &mut app::BattleObjectModu
     let character = kind_to_char(get_kind(module_accessor)) as u32;
     let damage = DamageModule::damage(module_accessor, 0);
     let stock_count = FighterInformation::stock_count(fighter_information) as u32;
+    let sd_count = FighterInformation::suicide_count(fighter_information, 0) as u32;
     let is_cpu = FighterInformation::is_operation_cpu(fighter_information);
     let skin = (WorkModule::get_int(module_accessor, *FIGHTER_INSTANCE_WORK_ID_INT_COLOR)) as u32; //returns costume slot 0-indexed
 
@@ -328,6 +329,7 @@ pub unsafe fn set_player_information(module_accessor: &mut app::BattleObjectModu
     GAME_INFO.players[player_num].character.store(character, Ordering::SeqCst);
     GAME_INFO.players[player_num].damage.store(damage, Ordering::SeqCst);
     GAME_INFO.players[player_num].stocks.store(stock_count, Ordering::SeqCst);
+    GAME_INFO.players[player_num].self_destructs.store(sd_count, Ordering::SeqCst);
     GAME_INFO.players[player_num].is_cpu.store(is_cpu, Ordering::SeqCst);
     GAME_INFO.players[player_num].skin.store(skin, Ordering::SeqCst);
     println!("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ player tag {}", get_tag_of_player(player_num));
