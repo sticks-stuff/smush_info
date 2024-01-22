@@ -82,10 +82,10 @@ pub fn once_per_frame_per_fighter(fighter : &mut L2CFighterCommon) {
         let pos_x = lua_bind::PostureModule::pos_x(module_accessor);
         let pos_y = lua_bind::PostureModule::pos_y(module_accessor);
         let pos_z = lua_bind::PostureModule::pos_z(module_accessor);
-        println!("player {} x {} y {} z {}", player_num, pos_x, pos_y, pos_z);
+        // println!("player {} x {} y {} z {}", player_num, pos_x, pos_y, pos_z);
         let pos = Vector3f { x: pos_x, y: pos_y, z: pos_z };
         let screen_pos = as_pixels(pos);
-        println!("player {} screen_pos x {} screen_pos y {}", player_num, screen_pos.x, screen_pos.y);
+        // println!("player {} screen_pos x {} screen_pos y {}", player_num, screen_pos.x, screen_pos.y);
     
         GAME_INFO.players[player_num].x.store(screen_pos.x, Ordering::SeqCst);
         GAME_INFO.players[player_num].y.store(screen_pos.y, Ordering::SeqCst);
@@ -159,7 +159,7 @@ fn start_server() -> Result<(), i64> {
             let mgr = *(FIGHTER_MANAGER_ADDR as *mut *mut app::FighterManager);
             let is_match = FighterManager::entry_count(mgr) > 0 &&
                 !FighterManager::is_result_mode(mgr) &&
-                *(offset_to_addr(0x53030f0) as *const u32) != 0x6020000; //is_match is set to true when the player in the controls screen, i assume because there is a sandbag and mario. this ensures we're not in the controls screen 
+                *(offset_to_addr(0x53030f0) as *const u32) == 0x2010000; //weird crashes on gamemodes that aren't just normal smash
 
             if is_match {
                 GAME_INFO.remaining_frames.store(get_remaining_time_as_frame(), Ordering::SeqCst);
@@ -189,7 +189,7 @@ fn start_server() -> Result<(), i64> {
                     println!("send_bytes errno = {}", e);
                 }
             }
-            std::thread::sleep(Duration::from_millis(500));
+            std::thread::sleep(Duration::from_millis(16));
         }
         /*let magic = recv_bytes(tcp_socket, 4).unwrap();
         if &magic == b"HRLD" {
@@ -617,7 +617,7 @@ pub fn main() {
         special_lw_decide_command_hook,
         special_lw_select_index_hook
     );
-    // acmd::add_custom_hooks!(once_per_frame_per_fighter);
+    acmd::add_custom_hooks!(once_per_frame_per_fighter);
 
     std::thread::spawn(||{
         loop {
