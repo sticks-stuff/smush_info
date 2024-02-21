@@ -25,6 +25,8 @@ use smash::Vector2f;
 mod conversions;
 use conversions::{kind_to_char, stage_id_to_stage};
 
+use const_format::formatcp;
+
 static mut OFFSET1 : usize = 0x1b52a0;
 static mut OFFSET2 : usize = 0x225dc2c;
 static mut OFFSET3 : usize = 0xd7140;
@@ -492,6 +494,30 @@ pub struct FighterInfoBasic {
     field83_0x84: [u8; 0x64],
 }
 
+macro_rules! check_offset {
+
+    ($struct_name:ident::$func_name:ident == $expect:literal) => {
+        const _: () = {
+            const expect: usize = $EXPECT;
+            const offset: usize = unsafe {
+                let c = std::mem::MaybeUninit::uninit();
+                let c_ptr: *const FighterInfoBasic = c.as_ptr();
+
+                // cast to u8 pointers so we get offset in bytes
+                let c_u8_ptr = c_ptr as *const u8;
+                let f_u8_ptr = std::ptr::addr_of!((*c_ptr).field75_0x70) as *const u8;
+
+                f_u8_ptr.offset_from(c_u8_ptr) as usize
+            };
+            if offset != $expect {
+                panic!("{}", formatcp!("The field {}::{} is in the wrong place! Expected 0x{:x} but got 0x{:x}", stringify!($struct_name), stringify!($func_name), expect, offset))
+            }
+        };
+    }
+}
+
+check_offset!(FighterInfoBasic::field75_0x70 == 0x60);
+
 #[skyline::hook(offset = FIGHTER_SELECTED_OFFSET, inline)]
 fn css_fighter_selected(ctx: &InlineCtx) {
     let infos = unsafe { &*(ctx.registers[0].bindgen_union_field as *const FighterInfo) };
@@ -499,7 +525,7 @@ fn css_fighter_selected(ctx: &InlineCtx) {
     let fighter_id = infos.fighter_id as i32;
     let skin = infos.fighter_slot as u32;
     let character = kind_to_char(fighter_id) as u32;
-    let port = (infosbasic.field77_0x78 & 0xFFFF) as usize;
+    let port = (infosbasic.field77_0x78 & 0xFFFF) as usize; //this is messy
     println!("character {}\nskin {}\nport {}\n ", character, skin, port);
     GAME_INFO.players[port].character.store(character, Ordering::SeqCst);
     GAME_INFO.players[port].skin.store(skin, Ordering::SeqCst);
