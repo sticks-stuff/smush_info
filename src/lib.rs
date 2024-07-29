@@ -29,11 +29,11 @@ static mut OFFSET1 : usize = 0x1b52a0;
 static mut OFFSET2 : usize = 0x225dc2c;
 static mut OFFSET3 : usize = 0xd7140;
 
-// Default 13.0.1 offset
-static mut FIGHTER_SELECTED_OFFSET: usize = 0x66e120;
+// Default 13.0.2 offset
+static mut FIGHTER_SELECTED_OFFSET: usize = 0x66e140;
 
 static FIGHTER_SELECTED_SEARCH_CODE: &[u8] = &[
-    0x04, 0xdc, 0x45, 0x94,
+    0xb0, 0xde, 0x45, 0x94,
     0xe0, 0x03, 0x1c, 0x32,
     0xe1, 0x03, 0x1a, 0x32,
 ];
@@ -159,7 +159,7 @@ fn start_server() -> Result<(), i64> {
             let mgr = *(FIGHTER_MANAGER_ADDR as *mut *mut app::FighterManager);
             let is_match = FighterManager::entry_count(mgr) > 0 &&
                 !FighterManager::is_result_mode(mgr) &&
-                *(offset_to_addr(0x53030f0) as *const u32) != 0x6020000; //is_match is set to true when the player in the controls screen, i assume because there is a sandbag and mario. this ensures we're not in the controls screen 
+                *(offset_to_addr(0x53050f0) as *const u32) != 0x6020000; //is_match is set to true when the player in the controls screen, i assume because there is a sandbag and mario. this ensures we're not in the controls screen 
 
             if is_match {
                 GAME_INFO.remaining_frames.store(get_remaining_time_as_frame(), Ordering::SeqCst);
@@ -169,8 +169,8 @@ fn start_server() -> Result<(), i64> {
                 GAME_INFO.is_match.store(false, Ordering::SeqCst);
             }
 
-            GAME_INFO.current_menu.store(*(offset_to_addr(0x53030f0) as *const u32), Ordering::SeqCst);
-            if(FighterManager::entry_count(mgr) > 0 && *(offset_to_addr(0x53030f0) as *const u32) != 0x6020000) {
+            GAME_INFO.current_menu.store(*(offset_to_addr(0x53050f0) as *const u32), Ordering::SeqCst);
+            if(FighterManager::entry_count(mgr) > 0 && *(offset_to_addr(0x53050f0) as *const u32) != 0x6020000) {
                 GAME_INFO.is_results_screen.store(FighterManager::is_result_mode(mgr), Ordering::SeqCst);
             }
 
@@ -398,11 +398,11 @@ fn nro_main(nro: &skyline::nro::NroInfo<'_>) {
 }
 
 
-static UPDATE_TAG_FOR_PLAYER_OFFSET: usize = 0x19fc5b0;
-static PLAYER_SAVE_OFFSET: usize = 0x5312510;
+static UPDATE_TAG_FOR_PLAYER_OFFSET: usize = 0x19fd090;
+static PLAYER_SAVE_OFFSET: usize = 0x5314510;
 static mut PLAYER_SAVE_ADDRESS: *const u64 = 0x0 as *const u64;
 
-static PLAYER_TAG_OFFSET: usize = 0x52c3758;
+static PLAYER_TAG_OFFSET: usize = 0x52c5758;
 
 pub fn get_tag_of_player(player_index: usize) -> String {
     let player_tag_offset = PLAYER_TAG_OFFSET + (player_index * 0x260);
@@ -514,12 +514,12 @@ fn search_offsets() {
         if let Some(offset) = find_subsequence(text, FIGHTER_SELECTED_SEARCH_CODE) {
             FIGHTER_SELECTED_OFFSET = offset;
         } else {
-            println!("Error: no offset found for 'css_fighter_selected'. Defaulting to 13.0.1 offset. This likely won't work.");
+            println!("Error: no offset found for 'css_fighter_selected'. Defaulting to 13.0.2 offset. This likely won't work.");
         }
     }
 }
 
-#[skyline::hook(offset = 0x23344e4, inline)]
+#[skyline::hook(offset = 0x2335164, inline)]
 unsafe fn selected_stage(ctx: &InlineCtx) {
     println!("stage has been selected");
     GAME_INFO.is_results_screen.store(false, Ordering::SeqCst);
