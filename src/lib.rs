@@ -167,6 +167,9 @@ fn start_server() -> Result<(), i64> {
             } else {
                 GAME_INFO.remaining_frames.store(-1.0 as u32, Ordering::SeqCst);
                 GAME_INFO.is_match.store(false, Ordering::SeqCst);
+                for player in &GAME_INFO.players {
+                    player.is_in_game.store(false, Ordering::SeqCst);
+                }
             }
 
             GAME_INFO.current_menu.store(*(offset_to_addr(0x53050f0) as *const u32), Ordering::SeqCst);
@@ -189,7 +192,7 @@ fn start_server() -> Result<(), i64> {
                     println!("send_bytes errno = {}", e);
                 }
             }
-            std::thread::sleep(Duration::from_millis(500));
+            std::thread::sleep(Duration::from_millis(160));
         }
         /*let magic = recv_bytes(tcp_socket, 4).unwrap();
         if &magic == b"HRLD" {
@@ -325,7 +328,7 @@ pub unsafe fn set_player_information(module_accessor: &mut app::BattleObjectModu
         GAME_INFO.players[player_num].hero_menu_selected.store(false, Ordering::SeqCst);
         GAME_INFO.players[player_num].hero_menu_open.store(false, Ordering::SeqCst);            
     }
-
+    GAME_INFO.players[player_num].is_in_game.store(true, Ordering::SeqCst);
     GAME_INFO.players[player_num].character.store(character, Ordering::SeqCst);
     GAME_INFO.players[player_num].damage.store(damage, Ordering::SeqCst);
     GAME_INFO.players[player_num].stocks.store(stock_count, Ordering::SeqCst);
@@ -617,7 +620,7 @@ pub fn main() {
         special_lw_decide_command_hook,
         special_lw_select_index_hook
     );
-    // acmd::add_custom_hooks!(once_per_frame_per_fighter);
+    acmd::add_custom_hooks!(once_per_frame_per_fighter);
 
     std::thread::spawn(||{
         loop {

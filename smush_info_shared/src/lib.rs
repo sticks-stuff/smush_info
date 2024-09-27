@@ -25,6 +25,7 @@ pub struct Info {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Player {
+    pub is_in_game: AtomicBool,
     pub name: AtomicName,
     pub character: AtomicU32,
     pub stocks: AtomicU32,
@@ -1053,6 +1054,7 @@ impl Info {
 impl Player {
     pub const fn new() -> Self {
         Self {
+            is_in_game: AtomicBool::new(false),
             name: AtomicName::new(None),
             character: AtomicU32::new(Character::None as u32),
             damage: AtomicF32::new(0.),
