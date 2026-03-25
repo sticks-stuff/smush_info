@@ -17,7 +17,7 @@ nnsdk = { git = "https://github.com/ultimate-research/nnsdk-rs" }
 smush_info_shared = {  path = "smush_info_shared"}
 serde_json = "1"
 lazy_static = "1.4"
-acmd = { git = "https://github.com/ultimate-research/skyline-acmd.git" }
+acmd = { git = "https://github.com/skpeter/skyline-acmd.git" }
 
 [profile.dev]
 panic = "abort"

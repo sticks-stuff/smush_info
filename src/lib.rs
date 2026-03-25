@@ -69,6 +69,61 @@ fn send_bytes(socket: i32, bytes: &[u8]) -> Result<(), i64> {
     }
 }
 
+fn close_socket_if_open(socket: &mut i32) {
+    if *socket >= 0 {
+        unsafe {
+            close(*socket);
+        }
+        *socket = -1;
+    }
+}
+
+// SO_SNDTIMEO (BSD-style) so send() fails after a few seconds on dead connections (e.g. after suspend).
+const SO_SNDTIMEO: i32 = 0x1005;
+
+#[repr(C)]
+struct timeval {
+    tv_sec: i64,
+    tv_usec: i64,
+}
+
+fn set_send_timeout(socket: i32, secs: i64) {
+    unsafe {
+        let tv = timeval {
+            tv_sec: secs,
+            tv_usec: 0,
+        };
+        if setsockopt(
+            socket,
+            SOL_SOCKET,
+            SO_SNDTIMEO,
+            &tv as *const _ as *const c_void,
+            size_of_val(&tv) as u32,
+        ) < 0
+        {
+            let e = *errno_loc();
+            println!("[smush_info] setsockopt SO_SNDTIMEO failed (errno {}), continuing without send timeout", e);
+        }
+    }
+}
+
+fn accept_client_socket(listener_socket: i32) -> Result<i32, i64> {
+    unsafe {
+        let mut client_addr: sockaddr_in = std::mem::zeroed();
+        let mut addr_len: u32 = size_of_val(&client_addr) as u32;
+        let client_socket = accept(
+            listener_socket,
+            &mut client_addr as *mut sockaddr_in as *mut sockaddr,
+            &mut addr_len,
+        );
+        if client_socket < 0 {
+            Err(*errno_loc())
+        } else {
+            Ok(client_socket)
+        }
+    }
+}
+
 fn as_pixels(vec: Vector3f) -> Vector2f {
     unsafe {
         let screen = world_to_screen(&vec, true);
@@ -113,7 +168,8 @@ fn start_server() -> Result<(), i64> {
             sin_zero: [0; 8],
         };
 
-        let tcp_socket = socket(AF_INET, SOCK_STREAM, 0);
+        let mut listener_socket = socket(AF_INET, SOCK_STREAM, 0);
+        let mut client_socket: i32 = -1;
 
         macro_rules! dbg_err {
             ($expr:expr) => {
@@ -121,13 +177,14 @@ fn start_server() -> Result<(), i64> {
                 if rval < 0 {
                     let errno = *errno_loc();
                     dbg!(errno);
-                    close(tcp_socket);
+                    close_socket_if_open(&mut client_socket);
+                    close_socket_if_open(&mut listener_socket);
                     return Err(errno);
                 }
             };
         }
 
-        if (tcp_socket as u32 & 0x80000000) != 0 {
+        if listener_socket < 0 {
             let errno = *errno_loc();
             dbg!(errno);
             return Err(errno);
@@ -136,7 +193,15 @@ fn start_server() -> Result<(), i64> {
         let flags: u32 = 1;
 
         dbg_err!(setsockopt(
-            tcp_socket,
+            listener_socket,
+            SOL_SOCKET,
+            SO_REUSEADDR,
+            &flags as *const _ as *const c_void,
+            size_of_val(&flags) as u32,
+        ));        
+
+        dbg_err!(setsockopt(
+            listener_socket,
             SOL_SOCKET,
             SO_KEEPALIVE,
             &flags as *const _ as *const c_void,
@@ -144,20 +209,17 @@ fn start_server() -> Result<(), i64> {
         ));
 
         dbg_err!(bind(
-            tcp_socket,
+            listener_socket,
             &server_addr as *const sockaddr_in as *const sockaddr,
             size_of_val(&server_addr) as u32,
         ));
 
-        dbg_err!(listen(tcp_socket, 1));
+        dbg_err!(listen(listener_socket, 1));
+        println!("[smush_info] tcp server listening on 4242");
+        client_socket = accept_client_socket(listener_socket)?;
+        set_send_timeout(client_socket, 3);
+        println!("[smush_info] tcp client connected");
 
-        let mut addr_len: u32 = 0;
-
-        let mut w_tcp_socket = accept(
-            tcp_socket,
-            &server_addr as *const sockaddr_in as *mut sockaddr,
-            &mut addr_len,
-        );
 
         loop {
             let mgr = *(FIGHTER_MANAGER_ADDR as *mut *mut app::FighterManager);
@@ -184,17 +246,31 @@ fn start_server() -> Result<(), i64> {
 
             let mut data = serde_json::to_vec(&GAME_INFO).unwrap();
             data.push(b'\n');
-            match send_bytes(w_tcp_socket, &data) {
+            match send_bytes(client_socket, &data) {
                 Ok(_) => (),
-                Err(32) => {
-                    w_tcp_socket = accept(
-                        tcp_socket,
-                        &server_addr as *const sockaddr_in as *mut sockaddr,
-                        &mut addr_len,
+                Err(errno) if matches!(errno, 11 | 32 | 53 | 54 | 57 | 60) => {
+                    println!(
+                        "[smush_info] tcp client dropped (errno {}), waiting for reconnect",
+                        errno
                     );
+                    close_socket_if_open(&mut client_socket);
+                    match accept_client_socket(listener_socket) {
+                        Ok(socket) => {
+                            client_socket = socket;
+                            println!("[smush_info] tcp client connected");
+                        }
+                        Err(accept_errno) => {
+                            close_socket_if_open(&mut client_socket);
+                            close_socket_if_open(&mut listener_socket);
+                            return Err(accept_errno);
+                        }
+                    }
                 }
                 Err(e) => {
-                    println!("send_bytes errno = {}", e);
+                    println!("[smush_info] tcp send failed with errno {}, restarting listener", e);
+                    close_socket_if_open(&mut client_socket);
+                    close_socket_if_open(&mut listener_socket);
+                    return Err(e);
                 }
             }
             std::thread::sleep(Duration::from_millis(16));
@@ -208,7 +284,7 @@ fn start_server() -> Result<(), i64> {
             println!("Invalid magic")
         }*/
         
-        dbg_err!(close(tcp_socket));
+        dbg_err!(close(listener_socket));
     }
 
     Ok(())
@@ -529,6 +605,34 @@ fn search_offsets() {
     }
 }
 
+fn server_supervisor() {
+    // Give network stack time to come up (UDP thread uses 5s delay for the same reason).
+    std::thread::sleep(Duration::from_secs(2));
+    let backoff_steps = [1u64, 2, 5];
+    let mut restart_count: usize = 0;
+    loop {
+        println!("[smush_info] starting tcp server");
+        match start_server() {
+            Ok(_) => {
+                restart_count = 0;
+                std::thread::sleep(Duration::from_secs(1));
+            }
+            Err(errno) => {
+                restart_count = restart_count.saturating_add(1);
+                let backoff = backoff_steps
+                    .get(restart_count.saturating_sub(1))
+                    .copied()
+                    .unwrap_or(5);
+                println!(
+                    "[smush_info] tcp server exited (errno {}), restarting in {}s",
+                    errno, backoff
+                );
+                std::thread::sleep(Duration::from_secs(backoff));
+            }
+        }
+    }
+}
+
 #[skyline::hook(offset = 0x2335184, inline)]
 unsafe fn selected_stage(_ctx: &InlineCtx) {
     println!("stage has been selected");
@@ -629,15 +733,8 @@ pub fn main() {
     );
     acmd::add_custom_hooks!(once_per_frame_per_fighter);
 
-    std::thread::spawn(||{
-        loop {
-            std::thread::sleep(std::time::Duration::from_secs(30));
-            println!("[smush_info] starting tcp server");
-            if let Err(98) = start_server() {
-                break
-            }
-        }
-    });
+    std::thread::spawn(server_supervisor);
+
     std::thread::spawn(||{
         std::thread::sleep(std::time::Duration::from_secs(5));
         println!("[smush_info] starting broadcast");

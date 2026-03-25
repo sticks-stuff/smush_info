@@ -122,7 +122,7 @@ pub fn broadcast_device_info() {
             let errno_ptr = skyline::libc::errno_loc();
             let errno_val = *(errno_ptr as *const i32);
             let err_str_ptr = skyline::libc::strerror(errno_val);
-            let err_msg = std::ffi::CStr::from_ptr(err_str_ptr as *const i8)
+            let err_msg = std::ffi::CStr::from_ptr(err_str_ptr as *const u8)
                 .to_str()
                 .unwrap_or("unknown");
 

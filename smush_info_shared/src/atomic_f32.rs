@@ -14,13 +14,13 @@ impl AtomicF32 {
 
     pub fn load(&self, order: Ordering) -> f32 {
         unsafe {
-            core::mem::transmute(self.0.load(order))
+            f32::from_bits(self.0.load(order))
         }
     }
 
     pub fn store(&self, val: f32, order: Ordering) {
         unsafe {
-            self.0.store(core::mem::transmute(val), order)
+            self.0.store(f32::to_bits(val), order)
         }
     }
 }
