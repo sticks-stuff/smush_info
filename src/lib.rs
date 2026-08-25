@@ -222,11 +222,22 @@ fn start_server() -> Result<(), i64> {
 
 
         loop {
-            let mgr = *(FIGHTER_MANAGER_ADDR as *mut *mut app::FighterManager);
-            let is_match = FighterManager::entry_count(mgr) > 0 &&
-                !FighterManager::is_result_mode(mgr) &&
-                *(offset_to_addr(0x53040f0) as *const u32) != 0x6020000 && //is_match is set to true when the player in the controls screen, i assume because there is a sandbag and mario. this ensures we're not in the controls screen 
-                *(offset_to_addr(0x53040f0) as *const u32) != 0x4050000; //performs same check to make sure we're not on mii maker
+            // FighterManager singleton may not exist yet (early in app boot, before title screen)
+            // and FIGHTER_MANAGER_ADDR can be 0 if LookupSymbol failed. Treat both as "no match"
+            // to avoid dereferencing a null this-pointer in entry_count/is_result_mode.
+            let mgr: *mut app::FighterManager = if FIGHTER_MANAGER_ADDR == 0 {
+                std::ptr::null_mut()
+            } else {
+                *(FIGHTER_MANAGER_ADDR as *mut *mut app::FighterManager)
+            };
+            let current_menu: u32 = *(offset_to_addr(0x53040f0) as *const u32);
+            const CONTROLS_SCREEN_MENU: u32 = 0x6020000; //is_match is set to true when the player in the controls screen, i assume because there is a sandbag and mario. this ensures we're not in the controls screen
+            const MII_MAKER_MENU: u32 = 0x4050000; //performs same check to make sure we're not on mii maker
+            let menu_is_gameplay = current_menu != CONTROLS_SCREEN_MENU && current_menu != MII_MAKER_MENU;
+            let is_match = !mgr.is_null()
+                && FighterManager::entry_count(mgr) > 0
+                && !FighterManager::is_result_mode(mgr)
+                && menu_is_gameplay;
 
             if is_match {
                 GAME_INFO.remaining_frames.store(get_remaining_time_as_frame(), Ordering::SeqCst);
@@ -236,11 +247,12 @@ fn start_server() -> Result<(), i64> {
                 GAME_INFO.is_match.store(false, Ordering::SeqCst);
                 for player in &GAME_INFO.players {
                     player.is_in_game.store(false, Ordering::SeqCst);
+                    player.team.store(-1, Ordering::SeqCst);
                 }
             }
 
-            GAME_INFO.current_menu.store(*(offset_to_addr(0x53040f0) as *const u32), Ordering::SeqCst);
-            if FighterManager::entry_count(mgr) > 0 && *(offset_to_addr(0x53040f0) as *const u32) != 0x6020000 && *(offset_to_addr(0x53040f0) as *const u32) != 0x4050000 {
+            GAME_INFO.current_menu.store(current_menu, Ordering::SeqCst);
+            if !mgr.is_null() && FighterManager::entry_count(mgr) > 0 && menu_is_gameplay {
                 GAME_INFO.is_results_screen.store(FighterManager::is_result_mode(mgr), Ordering::SeqCst);
             }
 
@@ -404,6 +416,7 @@ pub unsafe fn set_player_information(module_accessor: &mut app::BattleObjectModu
     let sd_count = FighterInformation::suicide_count(fighter_information, 0) as u32;
     let is_cpu = FighterInformation::is_operation_cpu(fighter_information);
     let skin = (WorkModule::get_int(module_accessor, *FIGHTER_INSTANCE_WORK_ID_INT_COLOR)) as u32; //returns costume slot 0-indexed
+    let team = TeamModule::team_no(module_accessor) as i32;
 
     if FighterManager::entry_count(mgr) > 0 {
         GAME_INFO.players[player_num].hero_menu_selected.store(false, Ordering::SeqCst);
@@ -416,6 +429,7 @@ pub unsafe fn set_player_information(module_accessor: &mut app::BattleObjectModu
     GAME_INFO.players[player_num].self_destructs.store(sd_count, Ordering::SeqCst);
     GAME_INFO.players[player_num].is_cpu.store(is_cpu, Ordering::SeqCst);
     GAME_INFO.players[player_num].skin.store(skin, Ordering::SeqCst);
+    GAME_INFO.players[player_num].team.store(team, Ordering::SeqCst);
     println!("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ player tag {}", get_tag_of_player(player_num));
     GAME_INFO.players[player_num].name.store_str(Some(&get_tag_of_player(player_num)), Ordering::SeqCst);
 }

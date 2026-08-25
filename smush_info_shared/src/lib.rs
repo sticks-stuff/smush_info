@@ -1,5 +1,5 @@
 //#![feature(const_mut_refs)]
-use std::sync::atomic::{AtomicU32, AtomicBool, Ordering};
+use std::sync::atomic::{AtomicI32, AtomicU32, AtomicBool, Ordering};
 use serde::{Serialize, Deserialize};
 use std::fmt;
 
@@ -37,7 +37,9 @@ pub struct Player {
     pub y: AtomicF32,
     pub hero_menu_open: AtomicBool,
     pub hero_menu_selected: AtomicBool,
-    pub hero_menu_selection: AtomicU32
+    pub hero_menu_selection: AtomicU32,
+    /// Team index from `TeamModule::team_no`: 0–3 in team battle, -1 otherwise.
+    pub team: AtomicI32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1066,7 +1068,8 @@ impl Player {
             y: AtomicF32::new(0.),
             hero_menu_open: AtomicBool::new(false),
             hero_menu_selected: AtomicBool::new(false),
-            hero_menu_selection: AtomicU32::new(0)
+            hero_menu_selection: AtomicU32::new(0),
+            team: AtomicI32::new(-1),
         }
     }
 
@@ -1120,6 +1123,10 @@ impl Player {
     pub fn hero_menu_selection(&self) -> u32 {
         self.hero_menu_selection.load(Ordering::SeqCst)
     }
+
+    pub fn team(&self) -> i32 {
+        self.team.load(Ordering::SeqCst)
+    }
 }
 
 #[cfg(test)]
@@ -1161,7 +1168,7 @@ mod shared_tests {
             is_match: AtomicBool::new(true),
             remaining_frames: AtomicU32::new(3),
             current_menu: AtomicU32::new(3),
-            is_results_screen: AtomicU32::new(3),
+            is_results_screen: AtomicBool::new(false),
             stage: AtomicU32::new(Stage::Plankton as u32),
             players: [
                 Player::new(),

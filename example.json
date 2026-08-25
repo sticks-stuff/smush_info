@@ -19,7 +19,8 @@
       "y": 0,
       "hero_menu_open": false,
       "hero_menu_selected": false,
-      "hero_menu_selection": 0
+      "hero_menu_selection": 0,
+      "team": -1
     },
     {
       "is_in_game": false,
@@ -34,7 +35,8 @@
       "y": 0,
       "hero_menu_open": false,
       "hero_menu_selected": false,
-      "hero_menu_selection": 0
+      "hero_menu_selection": 0,
+      "team": -1
     },
     {
       "is_in_game": false,
@@ -64,7 +66,8 @@
       "y": 0,
       "hero_menu_open": false,
       "hero_menu_selected": false,
-      "hero_menu_selection": 0
+      "hero_menu_selection": 0,
+      "team": -1
     },
     {
       "is_in_game": false,
@@ -94,7 +97,8 @@
       "y": 0,
       "hero_menu_open": false,
       "hero_menu_selected": false,
-      "hero_menu_selection": 0
+      "hero_menu_selection": 0,
+      "team": -1
     },
     {
       "is_in_game": false,
@@ -109,7 +113,8 @@
       "y": 0,
       "hero_menu_open": false,
       "hero_menu_selected": false,
-      "hero_menu_selection": 0
+      "hero_menu_selection": 0,
+      "team": -1
     },
     {
       "is_in_game": false,
@@ -124,7 +129,8 @@
       "y": 0,
       "hero_menu_open": false,
       "hero_menu_selected": false,
-      "hero_menu_selection": 0
+      "hero_menu_selection": 0,
+      "team": -1
     }
   ]
 }
